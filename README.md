@@ -1,1 +1,1 @@
-# MachineLearning_peer
+This is a peer-review project of Machine Learning
