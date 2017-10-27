@@ -1,0 +1,111 @@
+---
+title: "Machine Learning Prediction Project"
+author: "Yue Liu"
+output:
+  html_document: default
+  pdf_document: default
+---
+## Summary
+
+Devices such as Jawbone Up, Nike FuelBand, and Fitbit are now possible to collect a large amount of data about personal activity relatively inexpensively. However, People regularly do is quantify how much of their daily exercise rather than how well they do it. 
+
+This report is based on training data and we will use testing data to validate our model for prediction performance.Random forest will be undertaken for this project. 
+
+
+## Data Cleaning
+```{r, echo=TRUE}
+# Load necessary R packages
+library(rpart)
+library(caret) 
+library(rattle)
+library(randomForest)
+library(rpart.plot)
+
+# Load traning and testing data
+Train_data <- read.csv("pml-training.csv", header = TRUE)
+Test_data <- read.csv("pml-testing.csv", header = TRUE)
+
+# Investigate Dependent Variable and Training Sample
+str(Train_data)
+summary(Train_data$classe)
+
+```
+
+There are 19622 observations and 160 columns in training sample. While dependent variable is a factor variable with 5 levels. It is unlikely to use all 159 columns for prediction, so the following section will perform variable reduction process.
+
+
+```{r, echo=TRUE}
+# Calcualte NAs for each column
+na_count <-sapply(Train_data, function(y) sum(is.na(y))/19216)
+head(na_count)
+table(na_count)
+
+# There are 67 columns with all missing values.Remove Columns with all NAs. 
+# We want to remove the same columns for both Training and Testing Data.
+
+Train_data_mod <- Train_data[, 
+                    !names(Train_data)%in%names(na_count[na_count==1])]
+Test_data_mod <- Test_data[, 
+                           !names(Test_data)%in%names(na_count[na_count==1])]
+
+# A separate sample is split from training data to validate prediction model.
+set.seed(1123)
+Random_sample <- createDataPartition(Train_data_mod$classe, p = 0.7, list = FALSE)
+
+Train_Use <- Train_data_mod[Random_sample, ]
+Test_Use <- Train_data_mod[-Random_sample, ]
+
+```
+
+
+
+## Modeling Procedure
+
+
+### Random Forest
+There is a limition of levels for categorical variables, therefore, before performing random forest algorithm, another variable reduction is needed.
+
+
+```{r, echo=TRUE}
+# Separate the dependent variable
+classe<-Train_Use$classe
+
+factor_count <-sapply(Train_Use, function(y) sum(is.factor(y)))
+factor_name <- names(factor_count[factor_count==1])
+Train_Use_mod <- Train_Use[, 
+                        !names(Train_Use)%in%factor_name]
+# Create Random Forest 
+
+fit_rf <- randomForest(classe~., data=Train_Use_mod
+                       ,importance=TRUE
+                       , ntree=500 )
+```
+
+```{r, fig.height=10}
+
+# Plot the Random Forest Variable Importance
+varImpPlot(fit_rf,main="Variable Importance by Random Forest")
+print(fit_rf)
+```
+```{r, fig.height=5}
+plot(fit_rf,main="Error Rate vs N_Trees")
+
+```
+
+We noticed that the Error rate drops after 100 trees, meanwhile, on testing data, error rate of 0.17% seems a good result. Now we will test this tree on testing sample:
+
+
+### Validation
+```{r, echo=TRUE}
+predict_test <- predict(fit_rf, Test_Use, type = "class")
+confusionMatrix(Test_Use$classe, predict_test)
+```
+
+The Overall Accuracy rate is 0.9987. The in-traning and testing validation illustrate that the random forest method is stable across different samples, which leads to high accuracy for this problem. Then we will perform final testing on the dataset.
+
+
+### Final Prediction
+```{r, echo=TRUE}
+orig_predict_test <- predict(fit_rf, Test_data_mod, type = "class")
+orig_predict_test
+```
